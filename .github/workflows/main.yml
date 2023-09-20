@@ -1,10 +1,45 @@
 name: Base
 
-on: [workflow_dispatch]
+on:
+    workflow_dispatch:
+    push:
 
 jobs:
-    base:
+    main_job:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
-              run: echo "Hello,World"
+              uses: actions/checkout@v3
+            - name: Set env
+              run: |
+                  escaped_commit_message=$(echo -n "${{ github.event.head_commit.message }}" | awk '{printf "%s\\n", $0}')
+                  echo "COMMIT_MESSAGE=$escaped_commit_message" >> $GITHUB_ENV
+            - name: Send GitHub Action trigger data to Slack workflow
+              id: slack
+              uses: slackapi/slack-github-action@v1.16.0
+              env:
+                  SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+                  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INCOMING_WEBHOOK_URL }}
+              with:
+                  payload: |
+                      {
+                        "text": ":github: ${{ job.status }}\n\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
+                        "blocks": [
+                            {
+                                "type": "section",
+                                "text": {
+                                        "type": "mrkdwn",
+                                        "text": ":github: ビルド結果: ${{ job.status }}\n\n${{ github.event.pull_request.html_url || github.event.head_commit.url }} \n メッセージ: ${{ env.COMMIT_MESSAGE }}"
+                                }
+                            },
+                            {
+                                "type": "context",
+                                "elements": [
+                                    {
+                                        "type": "mrkdwn",
+                                        "text": "Author: <https://github.com/${{ github.event.sender.login }}|@${{ github.event.sender.login }}>"
+                                    }
+                                ]
+                            }
+                        ]
+                      }
