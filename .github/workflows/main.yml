@@ -3,6 +3,7 @@ name: Base
 on:
     workflow_dispatch:
     push:
+    pull_request:
 
 jobs:
     main_job:
@@ -10,27 +11,23 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v3
-            - name: Set env
-              run: |
-                  msg="${{ github.event.pull_request.body }}"
-                  escaped_commit_message=$(echo -n "$msg" | awk '{printf "%s\\n", $0}')
-                  echo "COMMIT_MESSAGE=$escaped_commit_message" >> $GITHUB_ENV
-            - name: Send GitHub Action trigger data to Slack workflow
-              id: slack
-              uses: slackapi/slack-github-action@v1.16.0
-              env:
-                  SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-                  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INCOMING_WEBHOOK_URL }}
+            - name: Echo pr message
+              run: echo "${{ toJSON(github.event.pull_request) }}"
+            - uses: actions/github-script@v6
+              id: create-body
               with:
-                  payload: |
-                      {
+                  result-encoding: string
+                  script: |
+                      const commitMessage = ${{ toJSON(github.event.pull_request.body) }}
+                      const resultMessage = `":github: ビルド結果: ${{ job.status }}\n\n${{ github.event.pull_request.html_url || github.event.head_commit.url }} \n メッセージ: ${commitMessage}"`
+                      const body = {
                         "text": ":github: ${{ job.status }}\n\n${{ github.event.pull_request.html_url || github.event.head_commit.url }}",
                         "blocks": [
                             {
                                 "type": "section",
                                 "text": {
                                         "type": "mrkdwn",
-                                        "text": ":github: ビルド結果: ${{ job.status }}\n\n${{ github.event.pull_request.html_url || github.event.head_commit.url }} \n メッセージ: ${{ env.COMMIT_MESSAGE }}"
+                                        "text": resultMessage,
                                 }
                             },
                             {
@@ -44,3 +41,12 @@ jobs:
                             }
                         ]
                       }
+                      return JSON.stringify(body)
+            - name: Send GitHub Action trigger data to Slack workflow
+              id: slack
+              uses: slackapi/slack-github-action@v1.24.0
+              env:
+                  SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+                  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_INCOMING_WEBHOOK_URL }}
+              with:
+                  payload: ${{ steps.create-body.outputs.result }}
