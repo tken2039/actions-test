@@ -1,0 +1,10 @@
+name: Base
+
+on: [workflow_dispatch]
+
+jobs:
+    base:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              run: echo "Hello,World"
