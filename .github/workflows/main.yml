@@ -12,7 +12,8 @@ jobs:
               uses: actions/checkout@v3
             - name: Set env
               run: |
-                  escaped_commit_message=$(echo -n "${{ github.event.head_commit.message }}" | awk '{printf "%s\\n", $0}')
+                  msg="${{ github.event.pull_request.body }}"
+                  escaped_commit_message=$(echo -n "$msg" | awk '{printf "%s\\n", $0}')
                   echo "COMMIT_MESSAGE=$escaped_commit_message" >> $GITHUB_ENV
             - name: Send GitHub Action trigger data to Slack workflow
               id: slack
